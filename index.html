@@ -1,0 +1,204 @@
+<script src="https://unpkg.com/vue@3"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.10.4/gsap.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+<!-- <script src="https://cdn.tailwindcss.com"></script> -->
+<div id="app">
+
+  <h1>Setup:</h1>
+  <label>Tickets: </label><input v-model="confTickets">
+  <br>
+  <label>Free stones: </label><input v-model="confFreeStones"> ({{numFreeRolls}} rolls)
+  <br>
+  <label>Paid Stones: </label><input v-model="confPaidStones"> ({{numPaidRolls}} rolls)
+  <br>
+  
+  <label>Girls in banner:</label><input type="number" v-model="confGirlsBanner" min="1" :max="maxGirlsBanner"><br>
+  <label>Target girls:</label><input type="number" v-model="confGirlsTarget" min="1" :max="confGirlsBanner"><br>
+
+  <label>Roll until...</label>
+  <input type="radio" id="one" value="one-copy" v-model="rollUntil" />
+  <label for="one">Every target girl has a copy</label>
+
+  <input type="radio" id="awaken" value="awaken" v-model="rollUntil" />
+  <label for="two">Every target girl is Max Awakened (5 copies)</label>
+
+  <input type="radio" id="all" value="all" v-model="rollUntil" />
+  <label for="two">Out of stones</label>
+
+  <br>
+  <button @click="simulate">Simulate</button> 
+
+  <h1>Current simulation (#{{countSimulation}}):</h1>
+  Rolls: {{countRolls}} to reach {{rollUntil}} <br>
+  Stones: {{currentTickets}} / {{currentFreeRolls}} / {{currentPaidRolls}}
+  <ul>
+    <li v-for="girl in activeGirls" :key="girl.id">
+      <girl :value="girl"></girl>
+    </li>
+  </ul>
+  {{currentUnusedRolls}} rolls remaining
+
+  <h2>Sim Statistics</h2>
+  <ul>
+    <li>Total SSRs: {{simStats.totalSSRs}} (ratio of {{simStats.SSRRatio}})</li>
+    <li>Target SSRs: {{simStats.targetSSRs}} (with {{simStats.extraTargetSSRs}} extra)</li>
+    <li>Non-target SSRs: {{simStats.nonTargetSSRs}} (with {{simStats.extraNonTargetSSRs}} extra)</li>
+  </ul>
+
+  <h1> debug </h1>
+  {{targetGirls}}
+  {{reachedTarget}}
+
+</div>
+<script type="module">
+  const { createApp } = Vue
+
+  createApp({
+    created() {
+      for (let i = 0; i < this.maxGirlsBanner; i++) {
+        this.girls.push({
+          id:i,
+          name: "girl" + i,
+          gets: 0,
+          target: i + 1 <= this.confGirlsTarget
+        })
+      }
+    },
+    data() {
+      return {
+        confTickets: 656,
+        confFreeStones: 1000000,
+        confPaidStones: 10000,
+        maxGirlsBanner: 26,
+        confGirlsBanner:7,
+        confGirlsTarget:3,
+
+        rollUntil:"awaken",
+        countRolls:0,
+        currentTickets: 0,
+        currentFreeRolls: 0,
+        currentPaidRolls: 0,
+        girls: [],
+
+        countSimulation: 0
+      }
+    },
+    computed: {
+      numFreeRolls() { return this.confFreeStones/500; },
+      numPaidRolls() { return this.confPaidStones/500; },
+      activeGirls() {
+        return this.girls.slice(0, this.confGirlsBanner);
+      },
+      targetGirls() {
+        return this.girls.slice(0, this.confGirlsTarget);
+      },
+      reachedTarget() {
+        if (this.rollUntil == "awaken") {
+          return this.targetGirls.filter(girl => girl.gets < 5).length == 0;
+        }
+        if (this.rollUntil == "one-copy") {
+          return this.targetGirls.filter(girl => girl.gets < 1).length == 0;
+        }
+        return false;
+      },
+      currentUnusedRolls() {
+        return this.currentTickets + this.currentFreeRolls + this.currentPaidRolls;
+      },
+      simStats() {
+        let stats = {
+          totalSSRs: 0,
+          SSRRatio: 0,
+          targetSSRs: 0,
+          extraTargetSSRs: 0,
+          nonTargetSSRs: 0,
+          extraNonTargetSSRs: 0,
+        }
+        this.activeGirls.forEach(girl => {
+          stats.totalSSRs += girl.gets;
+          if (girl.target) {
+            stats.targetSSRs += girl.gets;
+            if (this.rollUntil == "awaken" && girl.gets >= 5) {
+              stats.extraTargetSSRs += girl.gets - 5;
+            } else if (this.rollUntil == "one-copy" && girl.gets >= 1) {
+              stats.extraTargetSSRs += girl.gets - 1;
+            }
+          } else {
+            stats.nonTargetSSRs += girl.gets;
+            if (this.rollUntil == "awaken" && girl.gets >= 5) {
+              stats.extraNonTargetSSRs += girl.gets - 5;
+            } else if (this.rollUntil == "one-copy" && girl.gets >= 1) {
+              stats.extraNonTargetSSRs += girl.gets - 1;
+            }
+          }
+        });
+        stats.SSRRatio = stats.totalSSRs/this.countRolls;
+        return stats;
+      }
+    },
+    methods: {
+      resetSimulation() {
+        this.countSimulation++;
+        this.countRolls = 0;
+        this.currentTickets = this.confTickets,
+        this.currentFreeRolls = this.numFreeRolls,
+        this.currentPaidRolls = this.numPaidRolls,
+        this.girls.forEach(girl => {
+          girl.gets = 0;
+        });
+      },
+      simulate() {
+        this.resetSimulation();
+        while (this.currentUnusedRolls > 0 && !this.reachedTarget) {
+          if (this.currentTickets > 0) {
+            this.currentTickets--;
+          } else if (this.currentFreeRolls > 0) {
+            this.currentFreeRolls--;
+          } else {
+            this.currentPaidRolls--;
+          }
+          this.roll();
+        }
+      },
+      roll(ssr_rate) {
+        this.countRolls++;
+        if (Math.random() <= 0.033) {
+          // got an ssr
+          let girl = this.activeGirls[Math.floor(Math.random()*this.activeGirls.length)]
+          girl.gets++;
+        }
+      },
+    },
+    watch: {
+      confGirlsTarget() {
+        for (let i = 0; i < this.maxGirlsBanner; i++) {
+          this.girls[i].target = i + 1 <= this.confGirlsTarget;
+        }
+      }
+    },
+    components: {
+      "animate-integer":{
+        props: ["value"],
+        watch: {
+          value() {
+            gsap.to(this, { duration: 0.5, animatedValue: Number(this.value) || 0 })
+          },
+        },
+        data() {
+          return {
+            animatedValue: this.value
+          };
+        },
+        template:`{{ animatedValue.toFixed(0) }}`
+      },
+      "girl":{
+        props: ["value"],
+        data() {
+          return {
+            data: this.value
+          };
+        },
+        template:`{{ data.name }} <span v-if="data.target">*</span>:<span v-for="index in data.gets">✪</span>`
+      }
+    }
+  }).mount('#app')
+</script>
