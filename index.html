@@ -82,9 +82,12 @@
       ({{(statistics.failures / statistics.simulationCount * 100).toFixed(2)}} %) </li>
     <li> <span style='color:blue'>Average rolls to succeed: {{statistics.meanRolls}}</span></li>
     <li> <span style='color:green'>Median rolls to succeed: {{statistics.medRolls}}</span> </li> 
+    <li><span style='color:blue'>Average number of SSRs: {{statistics.meanSSRs}}</span></li>
+    <li><span style='color:green'>Median number of SSRs: {{statistics.medSSRs}}</span></li>
   </ul>
   <div id="piechart"></div>
   <div id="histogram"></div>
+  <div id="ssrhistogram"></div>
 
 </div>
 <script type="module">
@@ -160,6 +163,9 @@
           requiredRolls: [],
           meanRolls: 0,
           medRolls: 0,
+          ssrs: [],
+          meanSSRs: 0,
+          medSSRs: 0,
         }
       }
     },
@@ -277,14 +283,17 @@
         } else {
           this.statistics.failures++;
         }
+        this.statistics.ssrs.push(this.summary.totalSSRs);
       },
       renderChart() {
-        let rolls = JSON.parse(JSON.stringify(this.statistics.requiredRolls));
-        let sum = 0;
-        for (let x of rolls) {
-          sum += x;
-        }
+        this.renderRollHistogram();
+        this.renderSuccessPie();
+        this.renderSSRHistogram();
+      },
+      renderRollHistogram() {
+        let rolls = this.statistics.requiredRolls;
         if (rolls.length > 0) {
+          let sum = rolls.reduce((a,b) => a+b,0);
           this.statistics.meanRolls = (sum / rolls.length).toFixed(0);
           this.statistics.medRolls = rolls.sort()[(rolls.length/2).toFixed(0)];
         }
@@ -292,9 +301,7 @@
           x: this.statistics.requiredRolls,
           type: 'histogram',
           histnorm: 'percent',
-          marker: {
-            color: 'red',
-          },
+          marker: { color: 'red' },
           opacity: 0.5,
         };
 
@@ -334,18 +341,66 @@
           }]
         };
         Plotly.newPlot('histogram', [data], layout);
-
-        var pieData = [{
-          values: [this.statistics.failures, this.statistics.simulationCount - this.statistics.failures],
-          labels: ['Failure', 'Success'],
-          type: 'pie'
-        }];
+      }, 
+      renderSSRHistogram() {
+        let ssrs = this.statistics.ssrs;
+        if (ssrs.length > 0) {
+          let sum = ssrs.reduce((a,b) => a+b,0);
+          this.statistics.meanSSRs = (sum / ssrs.length).toFixed(0);
+          this.statistics.medSSRs = ssrs.sort()[(ssrs.length/2).toFixed(0)];
+        }
+        let data = {
+          x: this.statistics.ssrs,
+          type: 'histogram',
+          histnorm: 'percent',
+          marker: { color: 'lightblue' },
+          opacity: 0.5,
+        };
 
         var layout = {
-          // height: 400,
-          // width: 500
+          bargap: 0.05, 
+          bargroupgap: 0.2, 
+          barmode: "overlay", 
+          title: "SSR's probability", 
+          xaxis: {title: "SSRs"}, 
+          yaxis: {title: "% of Simulations"},
+          shapes: [{
+            name: 'average',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.meanSSRs,
+            y0: 0,
+            x1: this.statistics.meanSSRs,
+            y1: 1,
+            line: {
+              color: 'blue',
+              width: 3
+            }
+          },{
+            name: 'median',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.medSSRs,
+            y0: 0,
+            x1: this.statistics.medSSRs,
+            y1: 1,
+            line: {
+              color: 'green',
+              width: 3
+            }
+          }]
         };
-        Plotly.newPlot('piechart', pieData, layout);
+        Plotly.newPlot('ssrhistogram', [data], layout);
+      },
+      renderSuccessPie() {
+        var pieData = [{
+          values: [ this.statistics.simulationCount - this.statistics.failures,this.statistics.failures],
+          labels: ['Success','Failure'],
+          type: 'pie'
+        }];
+        Plotly.newPlot('piechart', pieData);
       },
       clearSimData() {
         this.cleared = true;
@@ -366,6 +421,9 @@
           requiredRolls: [],
           meanRolls: 0,
           medRolls: 0,
+          ssrs: [],
+          meanSSRs: 0,
+          medSSRs: 0,
         };
         for (let girl of this.girls) {
           girl.ssrs = 0;
