@@ -6,11 +6,29 @@
 
   <h1>Setup:</h1>
   <label>Tickets: </label>
-  <input v-model="input.tickets" :disabled=simulationInProgress><br>
+  <input v-model="input.tickets" :disabled=simulationInProgress> @
+  <select v-model="input.ticketRatio" :disabled=simulationInProgress>
+    <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+      {{ option.text }}
+    </option>
+  </select>
+  <br>
   <label>Free stones: </label>
-  <input v-model="input.freeStones" :disabled=simulationInProgress> ({{freeRolls}} rolls)<br>
+  <input v-model="input.freeStones" :disabled=simulationInProgress> ({{freeRolls}} rolls) @
+  <select v-model="input.freeRatio" :disabled=simulationInProgress>
+    <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+      {{ option.text }}
+    </option>
+  </select>
+  <br>
   <label>Paid Stones: </label>
-  <input v-model="input.paidStones" :disabled=simulationInProgress> ({{paidRolls}} rolls)<br>
+  <input v-model="input.paidStones" :disabled=simulationInProgress> ({{paidRolls}} rolls) @
+  <select v-model="input.paidRatio" :disabled=simulationInProgress>
+    <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+      {{ option.text }}
+    </option>
+  </select>
+  <br>
   
   <label>Girls in banner:</label>
   <input type="number" v-model="input.bannerTotal" min="1" :max="MAX_GIRLS" :disabled=simulationInProgress><br>
@@ -100,6 +118,9 @@
           bannerTotal: 7,
           bannerTarget: 3,
           rollUntil:"awaken",
+          ticketRatio:"all11",
+          freeRatio:"every3rd",
+          paidRatio:"all33",
         },
 
         girls: [],
@@ -107,6 +128,13 @@
         cleared: true,
         simulationInProgress: false,
 
+        ratioOptions: [
+          {text:"Select SSR chance", value:'', disabled:true},
+          {text:"1.1% every roll", value:"all11", disabled:false},
+          {text:"3.3% every roll", value:"all33", disabled:false},
+          {text:"1.1% with every 3rd role at 3.3%", value:"every3rd", disabled:false},
+          {text:"1.1% with every 6th role at 3.3%", value:"every6th", disabled:false},
+        ],
 
         sim: {
           id: 0,
@@ -181,11 +209,11 @@
             action:"setup", 
             params:{
               ticketRolls: this.input.tickets,
-              ticketRatio: 'all11',
+              ticketRatio: this.input.ticketRatio,
               freeRolls: this.freeRolls,
-              freeRatio: 'every3rd',
+              freeRatio: this.input.freeRatio,
               paidRolls: this.paidRolls,
-              paidRatio: 'all33',
+              paidRatio: this.input.paidRatio,
               totalGirls: this.input.bannerTotal,
               mainGirls: this.input.bannerTarget,
               desiredCopies: this.desiredCopies,
