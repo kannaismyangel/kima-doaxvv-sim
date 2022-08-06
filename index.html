@@ -2,8 +2,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.10.4/gsap.min.js"></script>
 <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"> -->
 <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+<script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>
 <div id="app">
-
   <h1>Setup:</h1>
   <label>Tickets: </label>
   <input v-model="input.tickets" :disabled=simulationInProgress> @
@@ -30,10 +30,12 @@
   </select>
   <br>
   
-  <label>Girls in banner:</label>
-  <input type="number" v-model="input.bannerTotal" min="1" :max="MAX_GIRLS" :disabled=simulationInProgress><br>
+  <h2>Banner</h2>
   <label>Target girls:</label>
-  <input type="number" v-model="input.bannerTarget" min="1" :max="input.bannerTotal" :disabled=simulationInProgress><br>
+  <input type="number" v-model="input.bannerTarget" min="1" :max="input.bannerTotal" :disabled=simulationInProgress>
+  /
+  <input type="number" v-model="input.bannerTotal" :min=input.bannerTarget :max="MAX_GIRLS" :disabled=simulationInProgress> in banner
+  <br>
 
   <label>Roll until...</label>
   <input type="radio" id="one" value="one-copy" v-model="input.rollUntil" :disabled=simulationInProgress>
@@ -51,7 +53,8 @@
   <button @click="simulate(100)">100x</button>
   <button @click="simulate(1000)">1000x</button>
   <button @click="simulate(10000)">10000x</button>
-  <button @click="stopSimulation">STOP</button>
+  <button @click="stopSimulation">Stop</button>
+  <button @click="clearSimData">Clear</button>
 
   <h1>Current simulation (#{{sim.id}}):</h1>
   Status: {{sim.status}} 
@@ -67,9 +70,9 @@
 
   Sim Statistics:
   <ul>
-    <li>Total SSRs: {{simStats.totalSSRs}} ({{simStats.SSRRatio}} %)</li>
-    <li>Target SSRs: {{simStats.targetSSRs}} (with {{simStats.extraTargetSSRs}} extra)</li>
-    <li>Non-target SSRs: {{simStats.nonTargetSSRs}} (with {{simStats.extraNonTargetSSRs}} extra)</li>
+    <li>Total SSRs: {{summary.totalSSRs}} ({{summary.SSRRatio}} %)</li>
+    <li>Target SSRs: {{summary.targetSSRs}} (with {{summary.extraTargetSSRs}} extra)</li>
+    <li>Non-target SSRs: {{summary.nonTargetSSRs}} (with {{summary.extraNonTargetSSRs}} extra)</li>
   </ul>
 
   <h1>Overall statistics</h1>
@@ -77,7 +80,11 @@
     <li> {{statistics.simulationCount}} simulations
     <li> Number of failures: {{statistics.failures}} 
       ({{(statistics.failures / statistics.simulationCount * 100).toFixed(2)}} %) </li>
+    <li> <span style='color:blue'>Average rolls to succeed: {{statistics.meanRolls}}</span></li>
+    <li> <span style='color:green'>Median rolls to succeed: {{statistics.medRolls}}</span> </li> 
   </ul>
+  <div id="piechart"></div>
+  <div id="histogram"></div>
 
 </div>
 <script type="module">
@@ -150,7 +157,9 @@
         statistics: {
           simulationCount: 0,
           failures: 0,
-          requiredRolls: {}
+          requiredRolls: [],
+          meanRolls: 0,
+          medRolls: 0,
         }
       }
     },
@@ -170,7 +179,7 @@
       activeGirls() {
         return this.girls.slice(0, this.input.bannerTotal);
       },
-      simStats() {
+      summary() {
         let stats = {
           totalSSRs: 0,
           SSRRatio: 0,
@@ -180,20 +189,20 @@
           extraNonTargetSSRs: 0,
         }
         this.activeGirls.forEach(girl => {
-          stats.totalSSRs += girl.gets;
+          stats.totalSSRs += girl.ssrs;
           if (girl.target) {
-            stats.targetSSRs += girl.gets;
-            if (this.input.rollUntil == "awaken" && girl.gets >= 5) {
-              stats.extraTargetSSRs += girl.gets - 5;
-            } else if (this.input.rollUntil == "one-copy" && girl.gets >= 1) {
-              stats.extraTargetSSRs += girl.gets - 1;
+            stats.targetSSRs += girl.ssrs;
+            if (this.input.rollUntil == "awaken" && girl.ssrs >= 5) {
+              stats.extraTargetSSRs += girl.ssrs - 5;
+            } else if (this.input.rollUntil == "one-copy" && girl.ssrs >= 1) {
+              stats.extraTargetSSRs += girl.ssrs - 1;
             }
           } else {
-            stats.nonTargetSSRs += girl.gets;
-            if (this.input.rollUntil == "awaken" && girl.gets >= 5) {
-              stats.extraNonTargetSSRs += girl.gets - 5;
-            } else if (this.input.rollUntil == "one-copy" && girl.gets >= 1) {
-              stats.extraNonTargetSSRs += girl.gets - 1;
+            stats.nonTargetSSRs += girl.ssrs;
+            if (this.input.rollUntil == "awaken" && girl.ssrs >= 5) {
+              stats.extraNonTargetSSRs += girl.ssrs - 5;
+            } else if (this.input.rollUntil == "one-copy" && girl.ssrs >= 1) {
+              stats.extraNonTargetSSRs += girl.ssrs - 1;
             }
           }
         });
@@ -231,22 +240,21 @@
         gworker.postMessage({
           action:"stop", 
         });
+        this.renderChart();
       },
       handleSimulationComplete() {
         this.simulationInProgress = false;
+        this.renderChart();
       },
       handleSimulationResult(result) {
         console.log(JSON.stringify(result));
         for (let i = 0; i < result.girls.length; i++) {
-          this.girls[i].gets = result.girls[i];
+          this.girls[i].ssrs = result.girls[i];
         }
        
         this.sim.id = result.id;
         this.sim.status = result.success ? "SUCCESS" : "FAILED";
         this.sim.rolls = result.rollCount;
-        
-        this.statistics.simulationCount++;
-        this.statistics.failures += result.success ? 0 : 1;
 
         let remainingRolls = this.sim.rolls;
         let remaining = {}
@@ -262,13 +270,112 @@
         }
         remaining.paid = this.paidRolls - remainingRolls;
         this.sim.remaining = remaining;
+
+        this.statistics.simulationCount++;
+        if (result.success) {
+          this.statistics.requiredRolls.push(this.sim.rolls);
+        } else {
+          this.statistics.failures++;
+        }
       },
+      renderChart() {
+        let rolls = JSON.parse(JSON.stringify(this.statistics.requiredRolls));
+        let sum = 0;
+        for (let x of rolls) {
+          sum += x;
+        }
+        this.statistics.meanRolls = (sum / rolls.length).toFixed(0);
+        this.statistics.medRolls = rolls.sort()[(rolls.length/2).toFixed(0)];
+        let data = {
+          x: this.statistics.requiredRolls,
+          type: 'histogram',
+          histnorm: 'percent',
+          marker: {
+            color: 'red',
+          },
+          opacity: 0.5,
+        };
+
+        var layout = {
+          bargap: 0.05, 
+          bargroupgap: 0.2, 
+          barmode: "overlay", 
+          title: "Number of rolls to " + this.input.rollUntil, 
+          xaxis: {title: "Rolls"}, 
+          yaxis: {title: "% of Simulations"},
+          shapes: [{
+            name: 'average',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.meanRolls,
+            y0: 0,
+            x1: this.statistics.meanRolls,
+            y1: 1,
+            line: {
+              color: 'blue',
+              width: 3
+            }
+          },{
+            name: 'median',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.medRolls,
+            y0: 0,
+            x1: this.statistics.medRolls,
+            y1: 1,
+            line: {
+              color: 'green',
+              width: 3
+            }
+          }]
+        };
+        Plotly.newPlot('histogram', [data], layout);
+
+        var pieData = [{
+          values: [this.statistics.failures, this.statistics.simulationCount - this.statistics.failures],
+          labels: ['Failure', 'Success'],
+          type: 'pie'
+        }];
+
+        var layout = {
+          // height: 400,
+          // width: 500
+        };
+        Plotly.newPlot('piechart', pieData, layout);
+      },
+      clearSimData() {
+        this.cleared = true;
+        this.sim = {
+          id: 0,
+          status: '???',
+          rolls: 0,
+          remaining: {
+            tickets: 0,
+            free: 0,
+            paid: 0,
+          }
+        };
+
+        this.statistics= {
+          simulationCount: 0,
+          failures: 0,
+          requiredRolls: [],
+        };
+        for (let girl of this.girls) {
+          girl.ssrs = 0;
+        }
+
+        Plotly.purge('histogram');
+        Plotly.purge('piechart');
+      }
     },
     watch: {
       input: {
         handler() {
           console.log("INPUT!!");
-          this.cleared = true;
+          this.clearSimData();
         },
         deep: true,
       },
@@ -307,10 +414,10 @@
         <span v-else>
           {{ data.name }}
         </span>
-        <span v-if="data.gets >= 5" style="font-weight:bold">
+        <span v-if="data.ssrs >= 5" style="font-weight:bold">
           (MAX)
         </span>
-        :<span v-for="index in data.gets">
+        :<span v-for="index in data.ssrs">
           <span v-if="index == 1">★</span>
           <span v-else-if="index < 5">☆</span>
           <span v-else-if="index == 5">✪</span>
