@@ -53,10 +53,10 @@
   <button @click="simulate(100)">100x</button>
   <button @click="simulate(1000)">1000x</button>
   <button @click="simulate(10000)">10000x</button>
-  <button @click="stopSimulation">Stop</button>
-  <button @click="clearSimData">Clear</button>
+  <button @click="stopSimulation" :disabled=!simulationInProgress>Stop</button>
+  <button @click="clearSimData" :disabled=simulationInProgress>Clear</button>
 
-  <h1>Current simulation (#{{sim.id}}):</h1>
+  <h1>Current simulation #{{sim.id}}<span v-if="sim.remainingSimulations >0"> ({{sim.remainingSimulations}} remaining)</span>:</h1>
   Status: {{sim.status}} 
   <span v-if="sim.status == 'SUCCESS'">🥰</span>
   <span v-else-if="sim.status == 'FAILED'">😢</span>
@@ -154,7 +154,8 @@
             tickets: 0,
             free: 0,
             paid: 0,
-          }
+          },
+          remainingSimulations: 0,
         },
 
         statistics: {
@@ -250,6 +251,7 @@
       },
       handleSimulationComplete() {
         this.simulationInProgress = false;
+        this.sim.remainingSimulations = 0;
         this.renderChart();
       },
       handleSimulationResult(result) {
@@ -261,6 +263,7 @@
         this.sim.id = result.id;
         this.sim.status = result.success ? "SUCCESS" : "FAILED";
         this.sim.rolls = result.rollCount;
+        this.sim.remainingSimulations = result.remainingSimulations;
 
         let remainingRolls = this.sim.rolls;
         let remaining = {}
@@ -412,7 +415,8 @@
             tickets: 0,
             free: 0,
             paid: 0,
-          }
+          },
+          remainingSimulations: 0,
         };
 
         this.statistics= {

@@ -96,6 +96,7 @@ function executeRolls(conf, gachaRng) {
     success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies),
     girls: girls,
     rollCount: rollCount,
+    remainingSimulations: remainingSimulations,
   };
 }
 
