@@ -247,12 +247,11 @@
         gworker.postMessage({
           action:"stop", 
         });
-        this.renderChart();
       },
       handleSimulationComplete() {
         this.simulationInProgress = false;
         this.sim.remainingSimulations = 0;
-        this.renderChart();
+        this.render();
       },
       handleSimulationResult(result) {
         console.log(JSON.stringify(result));
@@ -288,7 +287,7 @@
         }
         this.statistics.ssrs.push(this.summary.totalSSRs);
       },
-      renderChart() {
+      render() {
         this.renderRollHistogram();
         this.renderSuccessPie();
         this.renderSSRHistogram();
