@@ -5,58 +5,61 @@
 <div id="app">
 
   <h1>Setup:</h1>
-  <label>Tickets: </label><input v-model="confTickets">
-  <br>
-  <label>Free stones: </label><input v-model="confFreeStones"> ({{numFreeRolls}} rolls)
-  <br>
-  <label>Paid Stones: </label><input v-model="confPaidStones"> ({{numPaidRolls}} rolls)
-  <br>
+  <label>Tickets: </label>
+  <input v-model="input.tickets" :disabled=simulationInProgress><br>
+  <label>Free stones: </label>
+  <input v-model="input.freeStones" :disabled=simulationInProgress> ({{freeRolls}} rolls)<br>
+  <label>Paid Stones: </label>
+  <input v-model="input.paidStones" :disabled=simulationInProgress> ({{paidRolls}} rolls)<br>
   
-  <label>Girls in banner:</label><input type="number" v-model="confGirlsBanner" min="1" :max="maxGirlsBanner"><br>
-  <label>Target girls:</label><input type="number" v-model="confGirlsTarget" min="1" :max="confGirlsBanner"><br>
+  <label>Girls in banner:</label>
+  <input type="number" v-model="input.bannerTotal" min="1" :max="MAX_GIRLS" :disabled=simulationInProgress><br>
+  <label>Target girls:</label>
+  <input type="number" v-model="input.bannerTarget" min="1" :max="input.bannerTotal" :disabled=simulationInProgress><br>
 
   <label>Roll until...</label>
-  <input type="radio" id="one" value="one-copy" v-model="rollUntil" />
+  <input type="radio" id="one" value="one-copy" v-model="input.rollUntil" :disabled=simulationInProgress>
   <label for="one">Every target girl has a copy</label>
 
-  <input type="radio" id="awaken" value="awaken" v-model="rollUntil" />
+  <input type="radio" id="awaken" value="awaken" v-model="input.rollUntil" :disabled=simulationInProgress>
   <label for="two">Every target girl is Max Awakened (5 copies)</label>
 
-  <input type="radio" id="all" value="all" v-model="rollUntil" />
+  <input type="radio" id="all" value="all" v-model="input.rollUntil" :disabled=simulationInProgress>
   <label for="two">Out of stones</label>
 
   <br>
-  <button @click="simulate">Simulate</button>
-  <button @click="simulateMultiple(100)">100x</button>
-  <button @click="simulateMultiple(1000)">1000x</button>
-  <button @click="simulateMultiple(10000)">10000x</button>
+  Simulate<span v-if="!cleared"> again</span>:
+  <button @click="simulate(1)">Once</button>
+  <button @click="simulate(100)">100x</button>
+  <button @click="simulate(1000)">1000x</button>
+  <button @click="simulate(10000)">10000x</button>
+  <button @click="stopSimulation">STOP</button>
 
-  <h1>Current simulation (#{{countSimulation}}):</h1>
-  Rolls: {{countRolls}} to reach {{rollUntil}} <br>
-  Stones: {{currentTickets}} / {{currentFreeRolls}} / {{currentPaidRolls}}
+  <h1>Current simulation (#{{sim.id}}):</h1>
+  Status: {{sim.status}} 
+  <span v-if="sim.status == 'SUCCESS'">🥰</span>
+  <span v-else-if="sim.status == 'FAILED'">😢</span>
+  <br>
+  Rolls: {{sim.rolls}} (remaining {{sim.remaining.tickets}} / {{sim.remaining.free}} / {{sim.remaining.paid}})
   <ul>
     <li v-for="girl in activeGirls" :key="girl.id">
       <girl :value="girl"></girl>
     </li>
   </ul>
-  {{currentUnusedRolls}} rolls remaining
 
-  <h2>Sim Statistics</h2>
+  Sim Statistics:
   <ul>
-    <li>Total SSRs: {{simStats.totalSSRs}} (ratio of {{simStats.SSRRatio}})</li>
+    <li>Total SSRs: {{simStats.totalSSRs}} ({{simStats.SSRRatio}} %)</li>
     <li>Target SSRs: {{simStats.targetSSRs}} (with {{simStats.extraTargetSSRs}} extra)</li>
     <li>Non-target SSRs: {{simStats.nonTargetSSRs}} (with {{simStats.extraNonTargetSSRs}} extra)</li>
   </ul>
 
   <h1>Overall statistics</h1>
   <ul>
-    <li>Number of failures: {{totalFailures}} ({{totalFailureRate}} failure rate)</li>
+    <li> {{statistics.simulationCount}} simulations
+    <li> Number of failures: {{statistics.failures}} 
+      ({{(statistics.failures / statistics.simulationCount * 100).toFixed(2)}} %) </li>
   </ul>
-
-  <h1> debug </h1>
-  {{targetGirls}}
-  {{reachedTarget}}
-
 
 </div>
 <script type="module">
@@ -71,63 +74,73 @@
         break;
       case 'simulationComplete':
         console.log("got simulationComplete");
+        vue.handleSimulationComplete();
         break;
     };
   };
 
   let vue = createApp({
     created() {
-      for (let i = 0; i < this.maxGirlsBanner; i++) {
+      for (let i = 0; i < this.MAX_GIRLS; i++) {
         this.girls.push({
           id:i,
           name: "girl" + i,
           gets: 0,
-          target: i + 1 <= this.confGirlsTarget
+          target: i + 1 <= this.input.bannerTarget
         })
       }
     },
     data() {
       return {
-        confTickets: 656,
-        confFreeStones: 1000000,
-        confPaidStones: 10000,
-        maxGirlsBanner: 26,
-        confGirlsBanner:7,
-        confGirlsTarget:3,
+        MAX_GIRLS: 26,
+        input: {
+          tickets: 600,
+          freeStones: 1000000,
+          paidStones: 10000,
+          bannerTotal: 7,
+          bannerTarget: 3,
+          rollUntil:"awaken",
+        },
 
-        rollUntil:"awaken",
-        countRolls:0,
-        currentTickets: 0,
-        currentFreeRolls: 0,
-        currentPaidRolls: 0,
         girls: [],
 
-        countSimulation: 0,
-        totalFailures: 0,
-        totalFailureRate: 0,
-        totalRolls: 0,
+        cleared: true,
+        simulationInProgress: false,
+
+
+        sim: {
+          id: 0,
+          status: '???',
+          rolls: 0,
+          remaining: {
+            tickets: 0,
+            free: 0,
+            paid: 0,
+          }
+        },
+
+        statistics: {
+          simulationCount: 0,
+          failures: 0,
+          requiredRolls: {}
+        }
       }
     },
     computed: {
-      numFreeRolls() { return this.confFreeStones/500; },
-      numPaidRolls() { return this.confPaidStones/500; },
+      freeRolls() { return this.input.freeStones/500; },
+      paidRolls() { return this.input.paidStones/500; },
+      desiredCopies() {
+        switch(this.input.rollUntil) {
+          case 'awaken':
+            return 5;
+          case 'one-copy':
+            return 1;
+          default:
+            return -1;
+        }
+      },
       activeGirls() {
-        return this.girls.slice(0, this.confGirlsBanner);
-      },
-      targetGirls() {
-        return this.girls.slice(0, this.confGirlsTarget);
-      },
-      reachedTarget() {
-        if (this.rollUntil == "awaken") {
-          return this.targetGirls.filter(girl => girl.gets < 5).length == 0;
-        }
-        if (this.rollUntil == "one-copy") {
-          return this.targetGirls.filter(girl => girl.gets < 1).length == 0;
-        }
-        return false;
-      },
-      currentUnusedRolls() {
-        return this.currentTickets + this.currentFreeRolls + this.currentPaidRolls;
+        return this.girls.slice(0, this.input.bannerTotal);
       },
       simStats() {
         let stats = {
@@ -142,88 +155,100 @@
           stats.totalSSRs += girl.gets;
           if (girl.target) {
             stats.targetSSRs += girl.gets;
-            if (this.rollUntil == "awaken" && girl.gets >= 5) {
+            if (this.input.rollUntil == "awaken" && girl.gets >= 5) {
               stats.extraTargetSSRs += girl.gets - 5;
-            } else if (this.rollUntil == "one-copy" && girl.gets >= 1) {
+            } else if (this.input.rollUntil == "one-copy" && girl.gets >= 1) {
               stats.extraTargetSSRs += girl.gets - 1;
             }
           } else {
             stats.nonTargetSSRs += girl.gets;
-            if (this.rollUntil == "awaken" && girl.gets >= 5) {
+            if (this.input.rollUntil == "awaken" && girl.gets >= 5) {
               stats.extraNonTargetSSRs += girl.gets - 5;
-            } else if (this.rollUntil == "one-copy" && girl.gets >= 1) {
+            } else if (this.input.rollUntil == "one-copy" && girl.gets >= 1) {
               stats.extraNonTargetSSRs += girl.gets - 1;
             }
           }
         });
-        stats.SSRRatio = stats.totalSSRs/this.countRolls;
+        stats.SSRRatio = (stats.totalSSRs / this.sim.rolls * 100).toFixed(2);
         return stats;
       },
     },
     methods: {
-      resetSimulation() {
-        this.countSimulation++;
-        this.countRolls = 0;
-        this.currentTickets = this.confTickets,
-        this.currentFreeRolls = this.numFreeRolls,
-        this.currentPaidRolls = this.numPaidRolls,
-        this.girls.forEach(girl => {
-          girl.gets = 0;
+      simulate(times) {
+        if (this.cleared && !this.simulationInProgress) {
+          this.cleared = false;
+          gworker.postMessage({
+            action:"setup", 
+            params:{
+              ticketRolls: this.input.tickets,
+              ticketRatio: 'all11',
+              freeRolls: this.freeRolls,
+              freeRatio: 'every3rd',
+              paidRolls: this.paidRolls,
+              paidRatio: 'all33',
+              totalGirls: this.input.bannerTotal,
+              mainGirls: this.input.bannerTarget,
+              desiredCopies: this.desiredCopies,
+            }
+          });
+        }
+        this.simulationInProgress = true;
+        gworker.postMessage({
+          action:"simulate", 
+          params:{times:times}
         });
       },
-      simulate() {
-        gworker.postMessage({action:"setup", params:{}})
-        gworker.postMessage({action:"simulate", params:{times:1000}})
-        // gworker.postMessage({action:"stop", params:{}})
-        this.resetSimulation();
-        while (this.currentUnusedRolls > 0 && !this.reachedTarget) {
-          if (this.currentTickets > 0) {
-            this.currentTickets--;
-          } else if (this.currentFreeRolls > 0) {
-            this.currentFreeRolls--;
-          } else {
-            this.currentPaidRolls--;
-          }
-          this.roll();
-        }
-        // no more rolls
-        this.totalFailures++;
+      stopSimulation() {
+        this.simulationInProgress = false;
+        gworker.postMessage({
+          action:"stop", 
+        });
       },
-      roll(ssr_rate) {
-        this.countRolls++;
-        if (Math.random() <= 0.033) {
-          // got an ssr
-          let girl = this.activeGirls[Math.floor(Math.random()*this.activeGirls.length)]
-          girl.gets++;
-        }
+      handleSimulationComplete() {
+        this.simulationInProgress = false;
       },
       handleSimulationResult(result) {
-        console.log("result: " + JSON.stringify(result));
+        console.log(JSON.stringify(result));
+        for (let i = 0; i < result.girls.length; i++) {
+          this.girls[i].gets = result.girls[i];
+        }
+       
+        this.sim.id = result.id;
+        this.sim.status = result.success ? "SUCCESS" : "FAILED";
+        this.sim.rolls = result.rollCount;
+        
+        this.statistics.simulationCount++;
+        this.statistics.failures += result.success ? 0 : 1;
+
+        let remainingRolls = this.sim.rolls;
+        let remaining = {}
+        if (remainingRolls > 0) {
+          let diff = Math.min(remainingRolls, this.input.tickets);
+          remainingRolls -= diff;
+          remaining.tickets = this.input.tickets - diff;
+        }
+        if (remainingRolls > 0) {
+          let diff = Math.min(remainingRolls, this.freeRolls);
+          remainingRolls -= diff;
+          remaining.free = this.freeRolls - diff;
+        }
+        remaining.paid = this.paidRolls - remainingRolls;
+        this.sim.remaining = remaining;
       },
-      simulateMultiple(times) {
-        alert("clicked!");
-        new Promise((resolve) => {
-          this.sleepFor(5000);
-          this.countSimulation++;
-          alert("done countSimulation++!");
-          Promise.resolve();
-        }).then((resolve) => {
-          alert("done then");
-          return;
-        });
-        alert("done simulate multiple!");
-      },
-      sleepFor(sleepDuration){
-        var now = new Date().getTime();
-        while(new Date().getTime() < now + sleepDuration){ /* Do nothing */ }
-      }
     },
     watch: {
-      confGirlsTarget() {
-        for (let i = 0; i < this.maxGirlsBanner; i++) {
-          this.girls[i].target = i + 1 <= this.confGirlsTarget;
+      input: {
+        handler() {
+          console.log("INPUT!!");
+          this.cleared = true;
+        },
+        deep: true,
+      },
+      'input.bannerTarget'() {
+        for (let i = 0; i < this.MAX_GIRLS; i++) {
+          this.girls[i].target = i + 1 <= this.input.bannerTarget;
         }
-      }
+      },
     },
     components: {
       "animate-integer":{
@@ -247,7 +272,23 @@
             data: this.value
           };
         },
-        template:`{{ data.name }} <span v-if="data.target">*</span>:<span v-for="index in data.gets">✪</span>`
+        template:`
+        <span v-if="data.target" style="color:red">
+          ❤{{ data.name }}❤
+        </span>
+        <span v-else>
+          {{ data.name }}
+        </span>
+        <span v-if="data.gets >= 5" style="font-weight:bold">
+          (MAX)
+        </span>
+        :<span v-for="index in data.gets">
+          <span v-if="index == 1">★</span>
+          <span v-else-if="index < 5">☆</span>
+          <span v-else-if="index == 5">✪</span>
+          <span v-else>⚹</span>
+        </span>
+        `
       }
     }
   }).mount('#app')

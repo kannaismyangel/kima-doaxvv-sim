@@ -17,14 +17,23 @@ self.onmessage = function(e) {
 
 function setupWorker(params) {
   console.log("setup!");
-  self.simulatorSettings = params.simulatorSettings;
+  self.remainingSimulations = 0;
+  self.conf = {
+    gacha: {
+      ticketRolls: params.ticketRolls,
+      ticketRatio: parseRatio(params.ticketRatio),
+      freeRolls: params.freeRolls,
+      freeRatio: parseRatio(params.freeRatio),
+      paidRolls: params.paidRolls,
+      paidRatio: parseRatio(params.paidRatio),
+    },
+    sim: {
+      totalGirls: params.totalGirls,
+      mainGirls: params.mainGirls,
+      desiredCopies: params.desiredCopies,
+    }
+  }
   self.simCount = 0;
-}
-
-function simulate(params) {
-  console.log("simulate!");
-  self.remainingSimulations = params.times;
-  executeSimulation();
 }
 
 function parseRatio(s) {
@@ -43,30 +52,36 @@ function parseRatio(s) {
   }
 }
 
+function simulate(params) {
+  console.log("simulate!");
+  self.remainingSimulations += params.times;
+  executeSimulation();
+}
+
 function executeSimulation() {
+  console.log("remaining:" + self.remainingSimulations)
   if (self.remainingSimulations <= 0) {
     postMessage({
       state:"simulationComplete",
     });
     return;
   }
-  
+
   self.remainingSimulations--;
-  let gacha = createGacha(600, [0.011], 1000, [0.011, 0.011, 0.033], 1000, [0.033]);
-  let result = executeRolls(7, 3, 5, gacha);
+  let gacha = createGacha(self.conf.gacha);
+  let result = executeRolls(self.conf.sim, gacha);
   postMessage({
-    simId: simCount++,
     state:"simResult",
     result: result,
   });
   setTimeout(executeSimulation);
 }
 
-function executeRolls(numTotalGirls, numMainGirls, numDesiredCopies, gachaRng) {
-  let girls = Array(numTotalGirls).fill(0);
+function executeRolls(conf, gachaRng) {
+  let girls = Array(conf.totalGirls).fill(0);
   let rollCount = 0;
   for (let ssr of gachaRng) {
-    if (girlsGotSSRs(girls, numMainGirls, numDesiredCopies)) {
+    if (girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies)) {
       break;
     }
 
@@ -77,29 +92,33 @@ function executeRolls(numTotalGirls, numMainGirls, numDesiredCopies, gachaRng) {
     }
   }
   return {
-    success: girlsGotSSRs(girls, numMainGirls, numDesiredCopies),
+    id: simCount++,
+    success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies),
     girls: girls,
     rollCount: rollCount,
   };
 }
 
 function girlsGotSSRs(allGirls, numMainGirls, desiredCopies) {
+  if (desiredCopies == -1) {
+    return false;
+  }
   let targetGirls = allGirls.slice(0, numMainGirls);
-  let withSSR = targetGirls.filter(copies => copies > desiredCopies);
+  let withSSR = targetGirls.filter(copies => copies >= desiredCopies);
   return withSSR.length >= numMainGirls;
 }
 
-function* createGacha(ticketRolls, ticketRatios, freeRolls, freeRatios, paidRolls, paidRatios) {
-  let ticketRatioGen = createRatioGenerator(ticketRatios);
-  for (let i = 0; i < ticketRolls; i++) {
+function* createGacha(conf) {
+  let ticketRatioGen = createRatioGenerator(conf.ticketRatio);
+  for (let i = 0; i < conf.ticketRolls; i++) {
     yield Math.random() < ticketRatioGen.next().value;
   }
-  let freeRatioGen = createRatioGenerator(freeRatios);
-  for (let i = 0; i < freeRolls; i++) {
+  let freeRatioGen = createRatioGenerator(conf.freeRatio);
+  for (let i = 0; i < conf.freeRolls; i++) {
     yield Math.random() < freeRatioGen.next().value;
   }
-  let paidRatioGen = createRatioGenerator(paidRatios);
-  for (let i = 0; i < paidRolls; i++) {
+  let paidRatioGen = createRatioGenerator(conf.paidRatio);
+  for (let i = 0; i < conf.paidRolls; i++) {
     yield Math.random() < paidRatioGen.next().value;
   }
   return;
