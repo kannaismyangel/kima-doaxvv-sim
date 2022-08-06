@@ -1,6 +1,6 @@
 <script src="https://unpkg.com/vue@3"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.10.4/gsap.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+<!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"> -->
 <!-- <script src="https://cdn.tailwindcss.com"></script> -->
 <div id="app">
 
@@ -26,7 +26,10 @@
   <label for="two">Out of stones</label>
 
   <br>
-  <button @click="simulate">Simulate</button> 
+  <button @click="simulate">Simulate</button>
+  <button @click="simulateMultiple(100)">100x</button>
+  <button @click="simulateMultiple(1000)">1000x</button>
+  <button @click="simulateMultiple(10000)">10000x</button>
 
   <h1>Current simulation (#{{countSimulation}}):</h1>
   Rolls: {{countRolls}} to reach {{rollUntil}} <br>
@@ -45,15 +48,34 @@
     <li>Non-target SSRs: {{simStats.nonTargetSSRs}} (with {{simStats.extraNonTargetSSRs}} extra)</li>
   </ul>
 
+  <h1>Overall statistics</h1>
+  <ul>
+    <li>Number of failures: {{totalFailures}} ({{totalFailureRate}} failure rate)</li>
+  </ul>
+
   <h1> debug </h1>
   {{targetGirls}}
   {{reachedTarget}}
 
+
 </div>
 <script type="module">
   const { createApp } = Vue
+  const gworker = new Worker("./gacha-worker.js");
+  gworker.onmessage = function(e) {
+    let data = e.data;
+    switch (data.state) {
+      case 'simResult':
+        console.log("got simResult");
+        vue.handleSimulationResult(data.result)
+        break;
+      case 'simulationComplete':
+        console.log("got simulationComplete");
+        break;
+    };
+  };
 
-  createApp({
+  let vue = createApp({
     created() {
       for (let i = 0; i < this.maxGirlsBanner; i++) {
         this.girls.push({
@@ -80,7 +102,10 @@
         currentPaidRolls: 0,
         girls: [],
 
-        countSimulation: 0
+        countSimulation: 0,
+        totalFailures: 0,
+        totalFailureRate: 0,
+        totalRolls: 0,
       }
     },
     computed: {
@@ -133,7 +158,7 @@
         });
         stats.SSRRatio = stats.totalSSRs/this.countRolls;
         return stats;
-      }
+      },
     },
     methods: {
       resetSimulation() {
@@ -147,6 +172,9 @@
         });
       },
       simulate() {
+        gworker.postMessage({action:"setup", params:{}})
+        gworker.postMessage({action:"simulate", params:{times:1000}})
+        // gworker.postMessage({action:"stop", params:{}})
         this.resetSimulation();
         while (this.currentUnusedRolls > 0 && !this.reachedTarget) {
           if (this.currentTickets > 0) {
@@ -158,6 +186,8 @@
           }
           this.roll();
         }
+        // no more rolls
+        this.totalFailures++;
       },
       roll(ssr_rate) {
         this.countRolls++;
@@ -167,6 +197,26 @@
           girl.gets++;
         }
       },
+      handleSimulationResult(result) {
+        console.log("result: " + JSON.stringify(result));
+      },
+      simulateMultiple(times) {
+        alert("clicked!");
+        new Promise((resolve) => {
+          this.sleepFor(5000);
+          this.countSimulation++;
+          alert("done countSimulation++!");
+          Promise.resolve();
+        }).then((resolve) => {
+          alert("done then");
+          return;
+        });
+        alert("done simulate multiple!");
+      },
+      sleepFor(sleepDuration){
+        var now = new Date().getTime();
+        while(new Date().getTime() < now + sleepDuration){ /* Do nothing */ }
+      }
     },
     watch: {
       confGirlsTarget() {
