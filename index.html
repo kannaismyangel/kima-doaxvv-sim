@@ -284,8 +284,10 @@
         for (let x of rolls) {
           sum += x;
         }
-        this.statistics.meanRolls = (sum / rolls.length).toFixed(0);
-        this.statistics.medRolls = rolls.sort()[(rolls.length/2).toFixed(0)];
+        if (rolls.length > 0) {
+          this.statistics.meanRolls = (sum / rolls.length).toFixed(0);
+          this.statistics.medRolls = rolls.sort()[(rolls.length/2).toFixed(0)];
+        }
         let data = {
           x: this.statistics.requiredRolls,
           type: 'histogram',
@@ -362,6 +364,8 @@
           simulationCount: 0,
           failures: 0,
           requiredRolls: [],
+          meanRolls: 0,
+          medRolls: 0,
         };
         for (let girl of this.girls) {
           girl.ssrs = 0;
