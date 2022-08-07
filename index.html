@@ -202,12 +202,12 @@
       return {
         MAX_GIRLS: 26,
         input: {
-          tickets: 600,
-          freeStones: 1000000,
-          paidStones: 10000,
+          tickets: 1000,
+          freeStones: 500000,
+          paidStones: 50000,
           bannerTotal: 7,
           bannerTarget: 3,
-          rollUntil:"awaken",
+          rollUntil:"one-copy",
           ticketRatio:"all11",
           freeRatio:"every3rd",
           paidRatio:"all33",
@@ -376,11 +376,11 @@
         }
       },
       renderRollHistogram() {
-        let rolls = this.statistics.requiredRolls;
+        let rolls = JSON.parse(JSON.stringify(this.statistics.requiredRolls));
         if (rolls.length > 0) {
           let sum = rolls.reduce((a,b) => a+b,0);
           this.statistics.meanRolls = (sum / rolls.length).toFixed(0);
-          this.statistics.medRolls = rolls.sort()[(rolls.length/2).toFixed(0)];
+          this.statistics.medRolls = rolls.sort((a, b) => (a - b))[(rolls.length/2).toFixed(0)];
         }
         let data = {
           x: this.statistics.requiredRolls,
@@ -432,7 +432,7 @@
         if (ssrs.length > 0) {
           let sum = ssrs.reduce((a,b) => a+b,0);
           this.statistics.meanSSRs = (sum / ssrs.length).toFixed(0);
-          this.statistics.medSSRs = ssrs.sort()[(ssrs.length/2).toFixed(0)];
+          this.statistics.medSSRs = ssrs.sort((a, b) => (a - b))[(ssrs.length/2).toFixed(0)];
         }
         let data = {
           x: this.statistics.ssrs,
