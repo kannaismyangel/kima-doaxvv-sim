@@ -85,16 +85,16 @@ function executeRolls(conf, gachaRng) {
   let ssrsToGoal = 0;
   let ssrsAfterGoal = 0;
   for (let ssr of gachaRng) {
-    if (ssr) {
-      if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl)) {
+    if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl)) {
+      rollCountAtGoal++;
+      if (ssr) {
         let randomGirl = Math.floor(Math.random() * girls.length);
         girls[randomGirl]++;
-        rollCountAtGoal++;
         ssrsToGoal++;
         ssrsAfterGoal++;
-      } else {
-        ssrsAfterGoal++;
       }
+    } else if (ssr) {
+      ssrsAfterGoal++;
     }
   }
   return {
