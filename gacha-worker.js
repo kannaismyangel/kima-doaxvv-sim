@@ -18,7 +18,6 @@ self.onmessage = function(e) {
 function setupWorker(params) {
   console.log("setup!");
   self.remainingSimulations = 0;
-  console.log("setupWorker everyGirl " +  params.everyGirl);
   self.conf = {
     gacha: {
       ticketRolls: params.ticketRolls,
@@ -109,7 +108,6 @@ function executeRolls(conf, gachaRng) {
 }
 
 function girlsGotSSRs(allGirls, numMainGirls, desiredCopies, everyGirl) {
-  console.log("girlsGotSSRs everyGirl " +  everyGirl);
   if (desiredCopies == -1) {
     return false;
   }
