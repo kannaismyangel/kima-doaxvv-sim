@@ -18,6 +18,7 @@ self.onmessage = function(e) {
 function setupWorker(params) {
   console.log("setup!");
   self.remainingSimulations = 0;
+  console.log("setupWorker everyGirl " +  params.everyGirl);
   self.conf = {
     gacha: {
       ticketRolls: params.ticketRolls,
@@ -31,6 +32,7 @@ function setupWorker(params) {
       totalGirls: params.totalGirls,
       mainGirls: params.mainGirls,
       desiredCopies: params.desiredCopies,
+      everyGirl: params.everyGirl,
     }
   }
   self.simCount = 0;
@@ -79,34 +81,41 @@ function executeSimulation() {
 
 function executeRolls(conf, gachaRng) {
   let girls = Array(conf.totalGirls).fill(0);
-  let rollCount = 0;
+  let rollCountAtGoal = 0;
+  let ssrsToGoal = 0;
+  let ssrsAfterGoal = 0;
   for (let ssr of gachaRng) {
-    if (girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies)) {
-      break;
-    }
-
-    rollCount++;
     if (ssr) {
-      let randomGirl = Math.floor(Math.random() * girls.length);
-      girls[randomGirl]++;
+      if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl)) {
+        let randomGirl = Math.floor(Math.random() * girls.length);
+        girls[randomGirl]++;
+        rollCountAtGoal++;
+        ssrsToGoal++;
+        ssrsAfterGoal++;
+      } else {
+        ssrsAfterGoal++;
+      }
     }
   }
   return {
     id: simCount++,
-    success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies),
+    success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl),
     girls: girls,
-    rollCount: rollCount,
+    ssrsToGoal: ssrsToGoal,
+    ssrsAfterGoal: ssrsAfterGoal,
+    rollCount: rollCountAtGoal,
     remainingSimulations: remainingSimulations,
   };
 }
 
-function girlsGotSSRs(allGirls, numMainGirls, desiredCopies) {
+function girlsGotSSRs(allGirls, numMainGirls, desiredCopies, everyGirl) {
+  console.log("girlsGotSSRs everyGirl " +  everyGirl);
   if (desiredCopies == -1) {
     return false;
   }
   let targetGirls = allGirls.slice(0, numMainGirls);
   let withSSR = targetGirls.filter(copies => copies >= desiredCopies);
-  return withSSR.length >= numMainGirls;
+  return everyGirl ? withSSR.length >= numMainGirls : withSSR.length >= 1;
 }
 
 function* createGacha(conf) {

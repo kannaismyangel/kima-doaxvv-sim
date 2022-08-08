@@ -81,15 +81,15 @@
         <legend>Roll until...</legend>
         <div class="form-check form-check-inline">
           <input id="one" class="form-check-input" type="radio" value="one-copy" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="one" class="form-check-label">Every target girl has a copy</label>
+          <label for="one" class="form-check-label">...One SSR...</label>
         </div>
         <div class="form-check form-check-inline">
           <input id="awaken" class="form-check-input" type="radio" value="awaken" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="awaken" class="form-check-label">Every target girl is Max Awakened (5 copies)</label>
+          <label for="awaken" class="form-check-label">...Max awaken (5)...</label>
         </div>
-        <div class="form-check form-check-inline">
-          <input id="all" class="form-check-input" type="radio" value="all" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="all" class="form-check-label">Out of stones</label>
+        <div class="form-check form-switch">
+          <input id="everyGirl" class="form-check-input" type="checkbox" role="switch" v-model="input.everyGirl" :disabled=simulationInProgress>
+          <label for="everyGirl" class="form-check-label">...for every target girl (off = stop at first girl)</label>
         </div>
       </fieldset>
     </form>
@@ -160,6 +160,8 @@
       <li class="list-group-item"><span style='color:green'>Median rolls to succeed: {{statistics.medRolls}}</span></li> 
       <li class="list-group-item"><span style='color:blue'>Average number of SSRs: {{statistics.meanSSRs}}</span></li>
       <li class="list-group-item"><span style='color:green'>Median number of SSRs: {{statistics.medSSRs}}</span></li>
+      <li class="list-group-item"><span style='color:crimson'>Average SSRs rolling everything: {{statistics.meanSSRsRollAll}}</span></li>
+      <li class="list-group-item"><span style='color:purple'>Median SSRs rolling everything: {{statistics.medSSRsRollAll}}</span></li>
     </ul>
   </div>
 
@@ -206,9 +208,12 @@
           tickets: 1000,
           freeStones: 500000,
           paidStones: 50000,
+
           bannerTotal: 7,
           bannerTarget: 3,
           rollUntil:"one-copy",
+          everyGirl: true,
+
           ticketRatio:"all11",
           freeRatio:"every3rd",
           paidRatio:"all33",
@@ -246,8 +251,11 @@
           meanRolls: 0,
           medRolls: 0,
           ssrs: [],
+          ssrsAfterGoal:[],
           meanSSRs: 0,
           medSSRs: 0,
+          meanSSRsRollAll: 0,
+          medSSRsRollAll: 0,
         }
       }
     },
@@ -314,6 +322,7 @@
               totalGirls: this.input.bannerTotal,
               mainGirls: this.input.bannerTarget,
               desiredCopies: this.desiredCopies,
+              everyGirl: this.input.everyGirl,
             }
           });
         }
@@ -348,16 +357,14 @@
 
         let remainingRolls = this.sim.rolls;
         let remaining = {}
-        if (remainingRolls > 0) {
-          let diff = Math.min(remainingRolls, this.input.tickets);
-          remainingRolls -= diff;
-          remaining.tickets = this.input.tickets - diff;
-        }
-        if (remainingRolls > 0) {
-          let diff = Math.min(remainingRolls, this.freeRolls);
-          remainingRolls -= diff;
-          remaining.free = this.freeRolls - diff;
-        }
+        let tdiff = Math.min(remainingRolls, this.input.tickets);
+        remainingRolls -= tdiff;
+        remaining.tickets = this.input.tickets - tdiff;
+
+        let fdiff = Math.min(remainingRolls, this.freeRolls);
+        remainingRolls -= fdiff;
+        remaining.free = this.freeRolls - fdiff;
+        
         remaining.paid = this.paidRolls - remainingRolls;
         this.sim.remaining = remaining;
 
@@ -367,7 +374,8 @@
         } else {
           this.statistics.failures++;
         }
-        this.statistics.ssrs.push(this.summary.totalSSRs);
+        this.statistics.ssrs.push(result.ssrsToGoal);
+        this.statistics.ssrsAfterGoal.push(result.ssrsAfterGoal);
       },
       render() {
         if (!this.cleared) {
@@ -395,7 +403,7 @@
           bargap: 0.05, 
           bargroupgap: 0.2, 
           barmode: "overlay", 
-          title: "Number of rolls to " + this.input.rollUntil, 
+          title: "Number of rolls to " + this.input.rollUntil + (this.input.everyGirl ? " every target girl" : " at least one girl"), 
           xaxis: {title: "Rolls"}, 
           yaxis: {title: "% of Simulations"},
           shapes: [{
@@ -435,23 +443,37 @@
           this.statistics.meanSSRs = (sum / ssrs.length).toFixed(0);
           this.statistics.medSSRs = ssrs.sort((a, b) => (a - b))[(ssrs.length/2).toFixed(0)];
         }
-        let data = {
-          x: this.statistics.ssrs,
+        let ssrsAll = this.statistics.ssrsAfterGoal;
+        if (ssrsAll.length > 0) {
+          let sum = ssrsAll.reduce((a,b) => a+b,0);
+          this.statistics.meanSSRsRollAll = (sum / ssrsAll.length).toFixed(0);
+          this.statistics.medSSRsRollAll = ssrsAll.sort((a, b) => (a - b))[(ssrsAll.length/2).toFixed(0)];
+        }
+        let data = [{
+          name: 'Stop at goal',
+          x: ssrs,
           type: 'histogram',
           histnorm: 'percent',
           marker: { color: 'lightblue' },
           opacity: 0.5,
-        };
+        },{
+          name:'Roll everything',
+          x: ssrsAll,
+          type: 'histogram',
+          histnorm: 'percent',
+          marker: { color: 'orange' },
+          opacity: 0.5,
+        }];
 
         var layout = {
           bargap: 0.05, 
           bargroupgap: 0.2, 
-          barmode: "overlay", 
+          barmode: "stack", 
           title: "SSR's probability", 
           xaxis: {title: "SSRs"}, 
           yaxis: {title: "% of Simulations"},
           shapes: [{
-            name: 'average',
+            name: 'stop at goal average',
             type: 'line',
             xref: 'x',
             yref: 'paper',
@@ -464,7 +486,7 @@
               width: 3
             }
           },{
-            name: 'median',
+            name: 'stop at goal median',
             type: 'line',
             xref: 'x',
             yref: 'paper',
@@ -476,9 +498,35 @@
               color: 'green',
               width: 3
             }
+          },{
+            name: 'roll all average',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.meanSSRsRollAll,
+            y0: 0,
+            x1: this.statistics.meanSSRsRollAll,
+            y1: 1,
+            line: {
+              color: 'crimson',
+              width: 3
+            }
+          },{
+            name: 'roll all median',
+            type: 'line',
+            xref: 'x',
+            yref: 'paper',
+            x0: this.statistics.medSSRsRollAll,
+            y0: 0,
+            x1: this.statistics.medSSRsRollAll,
+            y1: 1,
+            line: {
+              color: 'purple',
+              width: 3
+            }
           }]
         };
-        Plotly.newPlot('ssrhistogram', [data], layout);
+        Plotly.newPlot('ssrhistogram', data, layout);
       },
       renderSuccessPie() {
         var pieData = [{
@@ -502,15 +550,18 @@
           remainingSimulations: 0,
         };
 
-        this.statistics= {
+        this.statistics = {
           simulationCount: 0,
           failures: 0,
           requiredRolls: [],
           meanRolls: 0,
           medRolls: 0,
           ssrs: [],
+          ssrsAfterGoal: [],
           meanSSRs: 0,
           medSSRs: 0,
+          meanSSRsRollAll: 0,
+          medSSRsRollAll: 0,
         };
         for (let girl of this.girls) {
           girl.ssrs = 0;
