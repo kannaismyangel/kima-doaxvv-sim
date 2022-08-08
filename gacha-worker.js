@@ -79,23 +79,29 @@ function executeSimulation() {
 
 function executeRolls(conf, gachaRng) {
   let girls = Array(conf.totalGirls).fill(0);
-  let rollCount = 0;
+  let rollCountAtGoal = 0;
+  let ssrsToGoal = 0;
+  let ssrsAfterGoal = 0;
   for (let ssr of gachaRng) {
-    if (girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies)) {
-      break;
-    }
-
-    rollCount++;
     if (ssr) {
-      let randomGirl = Math.floor(Math.random() * girls.length);
-      girls[randomGirl]++;
+      if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies)) {
+        let randomGirl = Math.floor(Math.random() * girls.length);
+        girls[randomGirl]++;
+        rollCountAtGoal++;
+        ssrsToGoal++;
+        ssrsAfterGoal++;
+      } else {
+        ssrsAfterGoal++;
+      }
     }
   }
   return {
     id: simCount++,
     success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies),
     girls: girls,
-    rollCount: rollCount,
+    ssrsToGoal: ssrsToGoal,
+    ssrsAfterGoal: ssrsAfterGoal,
+    rollCount: rollCountAtGoal,
     remainingSimulations: remainingSimulations,
   };
 }
