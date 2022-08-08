@@ -18,6 +18,7 @@ self.onmessage = function(e) {
 function setupWorker(params) {
   console.log("setup!");
   self.remainingSimulations = 0;
+  console.log("setupWorker everyGirl " +  params.everyGirl);
   self.conf = {
     gacha: {
       ticketRolls: params.ticketRolls,
@@ -31,6 +32,7 @@ function setupWorker(params) {
       totalGirls: params.totalGirls,
       mainGirls: params.mainGirls,
       desiredCopies: params.desiredCopies,
+      everyGirl: params.everyGirl,
     }
   }
   self.simCount = 0;
@@ -84,7 +86,7 @@ function executeRolls(conf, gachaRng) {
   let ssrsAfterGoal = 0;
   for (let ssr of gachaRng) {
     if (ssr) {
-      if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies)) {
+      if (!girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl)) {
         let randomGirl = Math.floor(Math.random() * girls.length);
         girls[randomGirl]++;
         rollCountAtGoal++;
@@ -97,7 +99,7 @@ function executeRolls(conf, gachaRng) {
   }
   return {
     id: simCount++,
-    success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies),
+    success: girlsGotSSRs(girls, conf.mainGirls, conf.desiredCopies, conf.everyGirl),
     girls: girls,
     ssrsToGoal: ssrsToGoal,
     ssrsAfterGoal: ssrsAfterGoal,
@@ -106,13 +108,14 @@ function executeRolls(conf, gachaRng) {
   };
 }
 
-function girlsGotSSRs(allGirls, numMainGirls, desiredCopies) {
+function girlsGotSSRs(allGirls, numMainGirls, desiredCopies, everyGirl) {
+  console.log("girlsGotSSRs everyGirl " +  everyGirl);
   if (desiredCopies == -1) {
     return false;
   }
   let targetGirls = allGirls.slice(0, numMainGirls);
   let withSSR = targetGirls.filter(copies => copies >= desiredCopies);
-  return withSSR.length >= numMainGirls;
+  return everyGirl ? withSSR.length >= numMainGirls : withSSR.length >= 1;
 }
 
 function* createGacha(conf) {

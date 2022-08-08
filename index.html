@@ -81,16 +81,16 @@
         <legend>Roll until...</legend>
         <div class="form-check form-check-inline">
           <input id="one" class="form-check-input" type="radio" value="one-copy" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="one" class="form-check-label">Every target girl has a copy</label>
+          <label for="one" class="form-check-label">...One SSR...</label>
         </div>
         <div class="form-check form-check-inline">
           <input id="awaken" class="form-check-input" type="radio" value="awaken" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="awaken" class="form-check-label">Every target girl is Max Awakened (5 copies)</label>
+          <label for="awaken" class="form-check-label">...Max awaken (5)...</label>
         </div>
-        <!-- <div class="form-check form-check-inline">
-          <input id="all" class="form-check-input" type="radio" value="all" v-model="input.rollUntil" :disabled=simulationInProgress>
-          <label for="all" class="form-check-label">Out of stones</label>
-        </div> -->
+        <div class="form-check form-switch">
+          <input id="everyGirl" class="form-check-input" type="checkbox" role="switch" v-model="input.everyGirl" :disabled=simulationInProgress>
+          <label for="everyGirl" class="form-check-label">...for every target girl (off = stop at first girl)</label>
+        </div>
       </fieldset>
     </form>
   </div>
@@ -208,9 +208,12 @@
           tickets: 1000,
           freeStones: 500000,
           paidStones: 50000,
+
           bannerTotal: 7,
           bannerTarget: 3,
           rollUntil:"one-copy",
+          everyGirl: true,
+
           ticketRatio:"all11",
           freeRatio:"every3rd",
           paidRatio:"all33",
@@ -319,6 +322,7 @@
               totalGirls: this.input.bannerTotal,
               mainGirls: this.input.bannerTarget,
               desiredCopies: this.desiredCopies,
+              everyGirl: this.input.everyGirl,
             }
           });
         }
@@ -399,7 +403,7 @@
           bargap: 0.05, 
           bargroupgap: 0.2, 
           barmode: "overlay", 
-          title: "Number of rolls to " + this.input.rollUntil, 
+          title: "Number of rolls to " + this.input.rollUntil + (this.input.everyGirl ? " every target girl" : " at least one girl"), 
           xaxis: {title: "Rolls"}, 
           yaxis: {title: "% of Simulations"},
           shapes: [{
