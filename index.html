@@ -328,7 +328,7 @@
           },
           'generator':{
             text:"Custom Generator (Advanced)",
-            gen: {simple:false, val:"yield 1;"},
+            gen: {simple:false, val:"while(true) {yield 1;}"},
             disabled:false
           },
         },
@@ -485,7 +485,7 @@ Example for "(paid) 1.1% with every 6th role at 3.3%, stay at step 6":
     };
 (ie. yields 1.1% 5 times, then 3.3% afterwards)
 `;
-        let example = "yield 1;";
+        let example = "while(true) {yield 1;}";
         return prompt(msg, example);
       },
       simulate(times) {
