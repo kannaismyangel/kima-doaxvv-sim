@@ -1,8 +1,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://unpkg.com/vue@3"></script>
 <script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" crossorigin="anonymous"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" 
+rel="stylesheet" 
+integrity="sha384-gH2yIJqKdNHPEq0n4Mqa/HGKIhSkIHeL5AyhkYV8i59U5AR6csBvApHHNl/vI1Bx" 
+crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js" 
+integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa" 
+crossorigin="anonymous"></script>
 <link rel="stylesheet" href="./styles.css">
 
 <div id="app" class="parent container">
@@ -20,7 +25,7 @@
           <span class="input-group-text">@</span>
           <div class="form-floating">
             <select id="ticketRatio" class="form-select" v-model="input.ticketRatio" :disabled=simulationInProgress>
-              <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+              <option v-for="(option, key) in ratioOptions" :value="key" :disabled="option.disabled">
                 {{ option.text }}
               </option>
             </select>
@@ -36,7 +41,7 @@
           <span class="input-group-text">@</span>
           <div class="form-floating">
             <select id="freeRatio" class="form-select" v-model="input.freeRatio" :disabled=simulationInProgress>
-              <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+              <option v-for="(option, key) in ratioOptions" :value="key" :disabled="option.disabled">
                 {{ option.text }}
               </option>
             </select>
@@ -52,7 +57,7 @@
           <span class="input-group-text">@</span>
           <div class="form-floating">
             <select id="paidRatio" class="form-select" v-model="input.paidRatio" :disabled=simulationInProgress>
-              <option v-for="option in ratioOptions" :value="option.value" :disabled="option.disabled">
+              <option v-for="(option, key) in ratioOptions" :value="key" :disabled="option.disabled">
                 {{ option.text }}
               </option>
             </select>
@@ -171,6 +176,21 @@
 
 </div>
 <script type="module">
+  let errorHandler = function(err) {
+    alert(`
+UNEXPECTED ERROR,
+If this is not caused by using a custom generator, please let the developer know (please also include any console logs if you can):
+
+raw: ${err}
+msg: ${err.message ? err.message : "N/A"}
+stringified: ${JSON.stringify(err)}
+
+Stack trace:
+${err.stack ? err.stack : 'N/A'}
+`);
+    console.error(err);
+  };
+
   const { createApp } = Vue
   const gworker = new Worker("./gacha-worker.js");
   gworker.onmessage = function(e) {
@@ -178,18 +198,19 @@
     switch (data.state) {
       case 'simResult':
         console.log("got simResult");
-        vue.handleSimulationResult(data.result)
+        app.handleSimulationResult(data.result)
         break;
       case 'simulationComplete':
         console.log("got simulationComplete");
-        vue.handleSimulationComplete();
+        app.handleSimulationComplete();
         break;
     };
   };
+  gworker.onerror = errorHandler;
 
   addEventListener('resize', (event) => {vue.render()});
 
-  let vue = createApp({
+  let vueConfig = {
     created() {
       for (let i = 0; i < this.MAX_GIRLS; i++) {
         this.girls.push({
@@ -217,6 +238,9 @@
           ticketRatio:"all11",
           freeRatio:"every3rd",
           paidRatio:"all33",
+          ticketRatioCustomInput: '',
+          freeRatioCustomInput: '',
+          paidRatioCustomInput: '',
         },
 
         girls: [],
@@ -224,13 +248,111 @@
         cleared: true,
         simulationInProgress: false,
 
-        ratioOptions: [
-          {text:"Select SSR chance", value:'', disabled:true},
-          {text:"1.1% every roll", value:"all11", disabled:false},
-          {text:"3.3% every roll", value:"all33", disabled:false},
-          {text:"1.1% with every 3rd role at 3.3%", value:"every3rd", disabled:false},
-          {text:"1.1% with every 6th role at 3.3%", value:"every6th", disabled:false},
-        ],
+        ratioOptions: {
+          'label':{text:"Select SSR chance", gen:[1], disabled:true},
+          'all078':{
+            text:"0.78% every roll", 
+            gen: {simple:true, val:[0.0078]},
+            disabled:false
+          },
+          'all10':{
+            text:"1.0% every roll", 
+            gen: {simple:true, val:[0.011]},
+            disabled:false
+          },
+          'all11':{
+            text:"1.1% every roll", 
+            gen: {simple:true, val:[0.011]},
+            disabled:false
+          },
+          'all33':{
+            text:"3.3% every roll",
+            gen: {simple:true, val:[0.033]},
+            disabled:false
+          },
+          'every3rd':{
+            text:"3 step gacha: 1.1%, 3rd role at 3.3%",
+            gen: {simple:true, val:[0.011, 0.011, 0.033]},
+            disabled:false
+          },
+          'every3rdstay3rd':{
+            text:"(paid) 3 step gacha: 1.1%, 3rd role at 3.3%, stay at step 3",
+            gen: {simple:false, val:`
+              yield 0.011;
+              yield 0.011;
+              while (true) {
+                yield 0.033;
+              };
+              `
+            },
+            disabled:false
+          },
+          'every4th':{
+            text:"4 step gacha: 1.1%, 4th role at 3.3%",
+            gen: {simple:true, val:[0.011, 0.011, 0.011, 0.033]},
+            disabled:false
+          },
+          'every6th':{
+            text:"6 step gacha: 1.1%, 6th role at 3.3%",
+            gen: {simple:true, val:[0.011, 0.011, 0.011, 0.011, 0.011, 0.033]},
+            disabled:false
+          },
+          'every6threturn4':{
+            text:"(paid) 6 step gacha: 1.1%, 6th role at 3.3%, return to step 4",
+            gen: {simple:false, val:`
+              yield 0.011;
+              yield 0.011;
+              yield 0.011;
+              while (true) {
+                yield 0.011;
+                yield 0.011;
+                yield 0.033;
+              };
+              `
+            },
+            disabled:false
+          },
+          'every6thstay6th':{
+            text:"(paid) 6 step gacha: 1.1%, 6th role at 3.3%, stay at step 6",
+            gen: {simple:false, val:`
+              yield 0.011;
+              yield 0.011;
+              yield 0.011;
+              yield 0.011;
+              yield 0.011;
+              while (true) {
+                yield 0.033;
+              };
+              `
+            },
+            disabled:false
+          },
+          'guarantee6threturn4th':{
+            text:"(paid) 6 step gacha: 1.1%, 6th role guaranteed, return to step 4",
+            gen: {simple:false, val:`
+              yield 0.011;
+              yield 0.011;
+              yield 0.011;
+              while (true) {
+                yield 0.011;
+                yield 0.011;
+                yield 1;
+              };
+              `
+            },
+            disabled:false
+          },
+          'custom':{
+            text:"Custom percent or array",
+            gen: {simple:true, val:[1]},
+            disabled:false
+          },
+          'generator':{
+            text:"Custom Generator (Advanced)",
+            gen: {simple:false, val:"while(true) {yield 1;}"},
+            disabled:false
+          },
+        },
 
         sim: {
           id: 0,
@@ -275,6 +397,51 @@
       activeGirls() {
         return this.girls.slice(0, this.input.bannerTotal);
       },
+      ticketRatioGen() {
+        if (this.input.ticketRatio == 'custom') {
+          return {
+            simple: true,
+            val: this.input.ticketRatioCustomInput.split(',').map(x => parseFloat(x)),
+          };
+        } else if (this.input.ticketRatio == 'generator') {
+          return {
+            simple: false,
+            val: this.input.ticketRatioCustomInput,
+          };
+        } else {
+          return this.ratioOptions[this.input.ticketRatio].gen;
+        }
+      },
+      freeRatioGen() {
+        if (this.input.freeRatio == 'custom') {
+          return {
+            simple: true,
+            val: this.input.freeRatioCustomInput.split(',').map(x => parseFloat(x)),
+          };
+        } else if (this.input.freeRatio == 'generator') {
+          return {
+            simple: false,
+            val: this.input.freeRatioCustomInput,
+          };
+        } else {
+          return this.ratioOptions[this.input.freeRatio].gen;
+        }
+      },
+      paidRatioGen() {
+        if (this.input.paidRatio == 'custom') {
+          return {
+            simple: true,
+            val: this.input.paidRatioCustomInput.split(',').map(x => parseFloat(x)),
+          };
+        } else if (this.input.paidRatio == 'generator') {
+          return {
+            simple: false,
+            val: this.input.paidRatioCustomInput,
+          };
+        } else {
+          return this.ratioOptions[this.input.paidRatio].gen;
+        }
+      },
       summary() {
         let stats = {
           totalSSRs: 0,
@@ -307,24 +474,61 @@
       },
     },
     methods: {
+      showCustomPercentDialog() {
+        let msg = 
+`Enter one or more SSR percentages in decimal, separated by commas
+
+If more than one, the simulator will repeat after reaching the end
+
+Examples
+3.3% every roll: 0.033
+1.1% with every 3rd role at 3.3%: 0.011,0.011,0.033
+`;
+        let example = "0.011,0.011,0.033";
+        return prompt(msg, example);
+      },
+      showCustomGeneratorDialog() {
+        let msg = 
+`FOR ADVANCED USERS! Improper usage may crash your browser!
+
+Enter custom javascript generator function code as a string
+The code must yield the desired roll percentage as a decimal, and will be instantiated as a generator object to be used by the gacha RNG during simulation 
+See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/function*#description
+
+Example for "(paid) 1.1% with every 6th role at 3.3%, stay at step 6":
+    yield 0.011;
+    yield 0.011;
+    yield 0.011;
+    yield 0.011;
+    yield 0.011;
+    while (true) {
+      yield 0.033;
+    };
+(ie. yields 1.1% 5 times, then 3.3% afterwards)
+`;
+        let example = "while(true) {yield 1;}";
+        return prompt(msg, example);
+      },
       simulate(times) {
         if (this.cleared && !this.simulationInProgress) {
           this.cleared = false;
-          gworker.postMessage({
+          let msg = {
             action:"setup", 
             params:{
               ticketRolls: this.input.tickets,
-              ticketRatio: this.input.ticketRatio,
+              ticketRatio: JSON.parse(JSON.stringify(this.ticketRatioGen)),
               freeRolls: this.freeRolls,
-              freeRatio: this.input.freeRatio,
+              freeRatio: JSON.parse(JSON.stringify(this.freeRatioGen)),
               paidRolls: this.paidRolls,
-              paidRatio: this.input.paidRatio,
+              paidRatio: JSON.parse(JSON.stringify(this.paidRatioGen)),
               totalGirls: this.input.bannerTotal,
               mainGirls: this.input.bannerTarget,
               desiredCopies: this.desiredCopies,
               everyGirl: this.input.everyGirl,
             }
-          });
+          };
+          console.log(msg);
+          gworker.postMessage(msg);
         }
         this.simulationInProgress = true;
         gworker.postMessage({
@@ -592,7 +796,32 @@
           this.girls[i].target = i + 1 <= this.input.bannerTarget;
         }
       },
+      'input.ticketRatio'(newVal) {
+        if (newVal == 'custom') {
+          this.input.ticketRatioCustomInput = this.showCustomPercentDialog();
+        } else if(newVal == 'generator') {
+          this.input.ticketRatioCustomInput = this.showCustomGeneratorDialog();
+        }
+      },
+      'input.freeRatio'(newVal) {
+        if (newVal == 'custom') {
+          this.input.freeRatioCustomInput = this.showCustomPercentDialog();
+        } else if(newVal == 'generator') {
+          this.input.freeRatioCustomInput = this.showCustomGeneratorDialog();
+        }
+      },
+      'input.paidRatio'(newVal) {
+        if (newVal == 'custom') {
+          this.input.paidRatioCustomInput = this.showCustomPercentDialog();
+        } else if(newVal == 'generator') {
+          this.input.paidRatioCustomInput = this.showCustomGeneratorDialog();
+        }
+      },
     },
-    components: {}
-  }).mount('#app')
+    components: {},
+  };
+
+  let vue = createApp(vueConfig);
+  vue.config.errorHandler = errorHandler;
+  let app = vue.mount('#app')
 </script>

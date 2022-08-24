@@ -21,11 +21,11 @@ function setupWorker(params) {
   self.conf = {
     gacha: {
       ticketRolls: params.ticketRolls,
-      ticketRatio: parseRatio(params.ticketRatio),
+      ticketRatioGen: createRatioGenFunc(params.ticketRatio),
       freeRolls: params.freeRolls,
-      freeRatio: parseRatio(params.freeRatio),
+      freeRatioGen: createRatioGenFunc(params.freeRatio),
       paidRolls: params.paidRolls,
-      paidRatio: parseRatio(params.paidRatio),
+      paidRatioGen: createRatioGenFunc(params.paidRatio),
     },
     sim: {
       totalGirls: params.totalGirls,
@@ -37,21 +37,26 @@ function setupWorker(params) {
   self.simCount = 0;
 }
 
-function parseRatio(s) {
-  switch (s) {
-    case 'all11':
-      return [0.011];
-    case 'all33':
-      return [0.033]
-    case 'every3rd':
-      return [0.011, 0.011, 0.033];
-    case 'every6th':
-      return [0.011, 0.011, 0.011, 0.011, 0.011, 0.033]
-    default:
-      console.log("unrecognized rng ratio, default to 100% SSR");
-      return [1];
+function createRatioGenFunc(gen) {
+  if (gen.simple) {
+    return () => {return createArrRatioGeneratorFunc(gen.val)};
+  } else {
+    return constructCustomRatioGenFunc(gen.val);
   }
 }
+
+function* createArrRatioGeneratorFunc(arr) {
+  let i = 0;
+  while (true) {
+    yield arr[i++ % arr.length];
+  }
+}
+
+function constructCustomRatioGenFunc(code) {
+  let GeneratorFunction = (function* () {}).constructor;
+  return new GeneratorFunction('rolls', code);
+}
+
 
 function simulate(params) {
   console.log("simulate!");
@@ -117,26 +122,19 @@ function girlsGotSSRs(allGirls, numMainGirls, desiredCopies, everyGirl) {
 }
 
 function* createGacha(conf) {
-  let ticketRatioGen = createRatioGenerator(conf.ticketRatio);
+  let ticketRatio = conf.ticketRatioGen();
   for (let i = 0; i < conf.ticketRolls; i++) {
-    yield Math.random() < ticketRatioGen.next().value;
+    yield Math.random() < ticketRatio.next().value;
   }
-  let freeRatioGen = createRatioGenerator(conf.freeRatio);
+  let freeRatio = conf.freeRatioGen();
   for (let i = 0; i < conf.freeRolls; i++) {
-    yield Math.random() < freeRatioGen.next().value;
+    yield Math.random() < freeRatio.next().value;
   }
-  let paidRatioGen = createRatioGenerator(conf.paidRatio);
+  let paidRatio = conf.paidRatioGen();
   for (let i = 0; i < conf.paidRolls; i++) {
-    yield Math.random() < paidRatioGen.next().value;
+    yield Math.random() < paidRatio.next().value;
   }
   return;
-}
-
-function* createRatioGenerator(arr) {
-  let i = 0;
-  while (true) {
-    yield arr[i++ % arr.length];
-  }
 }
 
 function stop() {
