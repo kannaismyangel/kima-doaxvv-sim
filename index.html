@@ -176,6 +176,21 @@ crossorigin="anonymous"></script>
 
 </div>
 <script type="module">
+  let errorHandler = function(err) {
+    alert(`
+UNEXPECTED ERROR,
+If this is not caused by using a custom generator, please let the developer know (please also include any console logs if you can):
+
+raw: ${err}
+msg: ${err.message ? err.message : "N/A"}
+stringified: ${JSON.stringify(err)}
+
+Stack trace:
+${err.stack ? err.stack : 'N/A'}
+`);
+    console.error(err);
+  };
+
   const { createApp } = Vue
   const gworker = new Worker("./gacha-worker.js");
   gworker.onmessage = function(e) {
@@ -183,14 +198,15 @@ crossorigin="anonymous"></script>
     switch (data.state) {
       case 'simResult':
         console.log("got simResult");
-        vue.handleSimulationResult(data.result)
+        app.handleSimulationResult(data.result)
         break;
       case 'simulationComplete':
         console.log("got simulationComplete");
-        vue.handleSimulationComplete();
+        app.handleSimulationComplete();
         break;
     };
   };
+  gworker.onerror = errorHandler;
 
   addEventListener('resize', (event) => {vue.render()});
 
@@ -806,18 +822,6 @@ Example for "(paid) 1.1% with every 6th role at 3.3%, stay at step 6":
   };
 
   let vue = createApp(vueConfig);
-  vue.mount('#app')
-
-  vue.config.errorHandler = function(err) {
-    alert(`
-UNEXPECTED ERROR:
-(if this is not caused by using a custom generator, please let the developer know)
-
-${err}
-
-Stack trace:
-${err.stack ? err.stack : 'N/A'}
-`);
-    console.error(err);
-  };
+  vue.config.errorHandler = errorHandler;
+  let app = vue.mount('#app')
 </script>
